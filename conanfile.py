@@ -16,53 +16,14 @@ class DepotToolsConan(ConanFile):
     settings = {"os"}
     repository = "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
 
-    def system_requirements(self):
-        if self.settings.os == "Linux":
-            if str(tools.os_info.linux_distro) in ["ubuntu", "debian"]:
-                installer = tools.SystemPackageTool()
-                installer.install('ca-certificates')
+    checkout_folder = "depot_tools"
 
     def source(self):
-        if self.settings.os == "Windows":
-            url = "https://storage.googleapis.com/chrome-infra/depot_tools.zip"
-            tools.get(url)
-        else:
-            self.run("git clone %s" % self.repository)
+        git = tools.Git(folder=self.checkout_folder)
+        git.clone(self.repository)
 
     def package(self):
-        if self.settings.os == "Windows":
-            self.copy(pattern="*", dst=".", src=".")
-        else:
-            self.copy(pattern="*", dst=".", src="depot_tools")
-
-    def fix_permissions(self):
-        def chmod_plus_x(name):
-            os.chmod(name, os.stat(name).st_mode | 0o111)
-
-        if os.name == 'posix':
-            for root, _, files in os.walk(self.package_folder):
-                for file in files:
-                    filename = os.path.join(root, file)
-                    with open(filename, 'rb') as f:
-                        sig = f.read(4)
-                        if type(sig) is str:
-                            sig = [ord(s) for s in sig]
-                        if len(sig) >= 2 and sig[0] == 0x23 and sig[1] == 0x21:
-                            self.output.warn('chmod on script file %s' % file)
-                            chmod_plus_x(filename)
-                        elif sig == [0x7F, 0x45, 0x4C, 0x46]:
-                            self.output.warn('chmod on ELF file %s' % file)
-                            chmod_plus_x(filename)
-                        elif \
-                                sig == [0xCA, 0xFE, 0xBA, 0xBE] or \
-                                sig == [0xBE, 0xBA, 0xFE, 0xCA] or \
-                                sig == [0xFE, 0xED, 0xFA, 0xCF] or \
-                                sig == [0xCF, 0xFA, 0xED, 0xFE] or \
-                                sig == [0xFE, 0xED, 0xFA, 0xCE] or \
-                                sig == [0xCE, 0xFA, 0xED, 0xFE]:
-                            self.output.warn('chmod on Mach-O file %s' % file)
-                            chmod_plus_x(filename)
+        self.copy(pattern="*", dst=".", src=self.checkout_folder)
 
     def package_info(self):
-        self.fix_permissions()
         self.env_info.PATH.append(self.package_folder)
